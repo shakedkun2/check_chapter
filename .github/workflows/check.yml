@@ -1,0 +1,49 @@
+name: Check MangaDex Chapter
+
+on:
+  schedule:
+    # Runs automatically every 15 minutes
+    - cron: '*/15 * * * *'
+  workflow_dispatch: # Allows manual triggering from the GitHub Actions tab
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  check-chapter:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run chapter tracker
+        id: check
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          MANGA_ID: ${{ secrets.MANGA_ID || vars.MANGA_ID || 'bb5f1b24-58a6-49e4-847b-a322c2addbd5' }}
+          MANGA_TITLE: ${{ secrets.MANGA_TITLE || vars.MANGA_TITLE || 'You''re the Only One I Can See' }}
+          TARGET_CHAPTER: ${{ secrets.TARGET_CHAPTER || vars.TARGET_CHAPTER || '33' }}
+          CHECK_INTERVAL_SECONDS: ${{ secrets.CHECK_INTERVAL_SECONDS || vars.CHECK_INTERVAL_SECONDS || '600' }}
+          CHECK_ONCE: "true"
+        run: |
+          python check_chapter.py
+
+      - name: Disable workflow on release
+        if: steps.check.outputs.chapter_found == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Target chapter released! Disabling scheduled workflow to prevent duplicate alerts."
+          gh workflow disable "${{ github.workflow }}"
